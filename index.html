@@ -3,90 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Numerasi Rancang Bangun - Polypad Style</title>
+    <title>Taman Numerasi 3D - Rancang Bangun</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
     <style>
-        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #f0f2f5; margin: 0; }
-        #toolbar { background: #fff; padding: 15px; border-bottom: 2px solid #ddd; width: 100%; display: flex; gap: 10px; justify-content: center; }
-        canvas { background: white; border: 1px solid #ccc; box-shadow: 0 4px 10px rgba(0,0,0,0.1); cursor: crosshair; margin-top: 20px; }
-        .btn { padding: 10px 15px; border: none; cursor: pointer; border-radius: 5px; font-weight: bold; }
-        .wood { background: #a67c52; color: white; }
-        .paper { background: #fff; border: 1px solid #ccc; }
-        .glass { background: rgba(173, 216, 230, 0.5); border: 1px solid #add8e6; }
-        .metal { background: #8e8e93; color: white; }
-        .active { outline: 3px solid #007bff; }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #f0f2f5; overflow: hidden; }
+        #ui-layer { position: absolute; top: 0; left: 0; width: 100%; pointer-events: none; }
+        #toolbar { 
+            pointer-events: auto; background: white; padding: 15px; 
+            display: flex; gap: 10px; border-bottom: 2px solid #ddd; 
+            justify-content: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .btn { 
+            padding: 10px 15px; border: 1px solid #ccc; cursor: pointer; 
+            border-radius: 8px; font-weight: bold; transition: 0.3s;
+        }
+        .btn:hover { background: #e9ecef; }
+        .active { border-color: #007bff; background: #e7f1ff; color: #007bff; }
+        
+        #fold-container {
+            position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+            pointer-events: auto; background: white; padding: 20px;
+            border-radius: 15px; box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+            width: 300px; text-align: center;
+        }
+        input[type=range] { width: 100%; cursor: pointer; }
+        label { display: block; margin-bottom: 10px; font-weight: bold; color: #444; }
     </style>
 </head>
 <body>
 
-<div id="toolbar">
-    <button class="btn wood" onclick="setMaterial('wood')">KAYU</button>
-    <button class="btn paper" onclick="setMaterial('paper')">KERTAS</button>
-    <button class="btn glass" onclick="setMaterial('glass')">KACA</button>
-    <button class="btn metal" onclick="setMaterial('metal')">LOGAM</button>
-    <button class="btn" style="background: #ff4444; color: white;" onclick="clearCanvas()">HAPUS</button>
+<div id="ui-layer">
+    <div id="toolbar">
+        <div style="display:flex; gap:5px; align-items:center; border-right:1px solid #eee; padding-right:15px;">
+            <button class="btn" onclick="addShape('square')">⬜ Persegi</button>
+            <button class="btn" onclick="addShape('rect')">▭ P. Panjang</button>
+            <button class="btn" onclick="addShape('tri')">△ Segitiga</button>
+        </div>
+        <div style="display:flex; gap:5px; padding-left:10px;">
+            <button id="m-wood" class="btn" onclick="setMaterial('wood')">🪵 Kayu</button>
+            <button id="m-paper" class="btn active" onclick="setMaterial('paper')">📄 Kertas</button>
+            <button id="m-glass" class="btn" onclick="setMaterial('glass')">💎 Kaca</button>
+            <button id="m-metal" class="btn" onclick="setMaterial('metal')">⚙️ Logam</button>
+        </div>
+    </div>
+
+    <div id="fold-container">
+        <label>Lipat Jaring-jaring: <span id="angle-txt">0</span>°</label>
+        <input type="range" min="0" max="90" value="0" id="fold-slider">
+    </div>
 </div>
 
-<canvas id="polyCanvas" width="800" height="500"></canvas>
-
 <script>
-    const canvas = document.getElementById('polyCanvas');
-    const ctx = canvas.getContext('2d');
-    let currentMaterial = 'paper';
+    let scene, camera, renderer, currentMaterial = 'paper';
     let shapes = [];
 
     const materials = {
-        wood: { fill: '#d2b48c', stroke: '#8b4513', pattern: 'line' },
-        paper: { fill: '#ffffff', stroke: '#cccccc', pattern: 'none' },
-        glass: { fill: 'rgba(200, 240, 255, 0.4)', stroke: '#00aaff', pattern: 'shine' },
-        metal: { fill: '#b0b0b0', stroke: '#333333', pattern: 'gradient' }
+        wood: { color: 0xba8c63, metalness: 0.1, roughness: 0.8, opacity: 1 },
+        paper: { color: 0xffffff, metalness: 0.0, roughness: 0.5, opacity: 1 },
+        glass: { color: 0xaaddff, metalness: 0.5, roughness: 0.1, opacity: 0.6 },
+        metal: { color: 0x888899, metalness: 0.9, roughness: 0.3, opacity: 1 }
     };
 
-    function setMaterial(mat) {
-        currentMaterial = mat;
-        document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
-        document.querySelector('.' + mat).classList.add('active');
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xf0f2f5);
+
+        camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 12, 15);
+        camera.lookAt(0, 0, 0);
+
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        const light = new THREE.DirectionalLight(0xffffff, 1);
+        light.position.set(5, 10, 7.5);
+        scene.add(light);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+
+        animate();
     }
 
-    // Fungsi menggambar kotak/balok (Jaring-jaring)
-    canvas.addEventListener('mousedown', function(e) {
-        const rect = canvas.getBoundingClientRect();
-        const x = e.clientX - rect.left;
-        const y = e.clientY - rect.top;
+    function addShape(type) {
+        let geo;
+        if(type === 'square') geo = new THREE.PlaneGeometry(2, 2);
+        if(type === 'rect') geo = new THREE.PlaneGeometry(2, 4);
+        if(type === 'tri') geo = new THREE.CircleGeometry(1.2, 3);
+
+        const m = materials[currentMaterial];
+        const mat = new THREE.MeshStandardMaterial({
+            color: m.color, side: THREE.DoubleSide,
+            transparent: m.opacity < 1, opacity: m.opacity,
+            metalness: m.metalness, roughness: m.roughness
+        });
+
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.rotation.x = -Math.PI / 2; // Berbaring di lantai
         
-        // Buat objek bentuk baru
-        const newShape = { x, y, size: 80, material: materials[currentMaterial] };
-        shapes.push(newShape);
-        draw();
+        // Atur posisi acak di sekitar pusat
+        mesh.position.set((Math.random()-0.5)*6, 0, (Math.random()-0.5)*6);
+        
+        // Simpan data untuk rotasi lipat
+        mesh.userData = { type: type, originalPos: mesh.position.clone() };
+        
+        scene.add(mesh);
+        shapes.push(mesh);
+    }
+
+    function setMaterial(m) {
+        currentMaterial = m;
+        document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+        document.getElementById('m-'+m).classList.add('active');
+    }
+
+    document.getElementById('fold-slider').addEventListener('input', (e) => {
+        const angle = e.target.value;
+        document.getElementById('angle-txt').innerText = angle;
+        const rad = (angle * Math.PI) / 180;
+
+        shapes.forEach(mesh => {
+            // LOGIKA LIPAT: Benda yang jauh dari pusat koordinat (0,0) akan melipat ke dalam
+            if (mesh.position.x > 1) mesh.rotation.y = -rad;
+            else if (mesh.position.x < -1) mesh.rotation.y = rad;
+            
+            if (mesh.position.z > 1) mesh.rotation.x = (-Math.PI/2) + rad;
+            else if (mesh.position.z < -1) mesh.rotation.x = (-Math.PI/2) - rad;
+        });
     });
 
-    function draw() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        shapes.forEach(s => {
-            ctx.fillStyle = s.material.fill;
-            ctx.strokeStyle = s.material.stroke;
-            ctx.lineWidth = 2;
-
-            // Gambar Kotak
-            ctx.beginPath();
-            ctx.rect(s.x - s.size/2, s.y - s.size/2, s.size, s.size);
-            ctx.fill();
-            ctx.stroke();
-
-            // Efek Tekstur Sederhana
-            if(s.material.pattern === 'line') { // Kayu
-                ctx.beginPath();
-                ctx.moveTo(s.x - 30, s.y - 20); ctx.lineTo(s.x + 30, s.y - 20);
-                ctx.stroke();
-            } else if(s.material.pattern === 'shine') { // Kaca
-                ctx.fillStyle = 'rgba(255,255,255,0.6)';
-                ctx.fillRect(s.x - 30, s.y - 30, 10, 40);
-            }
-        });
+    function animate() {
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
     }
 
-    function clearCanvas() { shapes = []; draw(); }
-    setMaterial('paper'); // Default
-</script>
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
 
+    init();
+</script>
 </body>
 </html>

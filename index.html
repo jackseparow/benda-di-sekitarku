@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Numerasi Rancang Bangun - Polypad Style</title>
+    <style>
+        body { font-family: sans-serif; display: flex; flex-direction: column; align-items: center; background: #f0f2f5; margin: 0; }
+        #toolbar { background: #fff; padding: 15px; border-bottom: 2px solid #ddd; width: 100%; display: flex; gap: 10px; justify-content: center; }
+        canvas { background: white; border: 1px solid #ccc; box-shadow: 0 4px 10px rgba(0,0,0,0.1); cursor: crosshair; margin-top: 20px; }
+        .btn { padding: 10px 15px; border: none; cursor: pointer; border-radius: 5px; font-weight: bold; }
+        .wood { background: #a67c52; color: white; }
+        .paper { background: #fff; border: 1px solid #ccc; }
+        .glass { background: rgba(173, 216, 230, 0.5); border: 1px solid #add8e6; }
+        .metal { background: #8e8e93; color: white; }
+        .active { outline: 3px solid #007bff; }
+    </style>
+</head>
+<body>
+
+<div id="toolbar">
+    <button class="btn wood" onclick="setMaterial('wood')">KAYU</button>
+    <button class="btn paper" onclick="setMaterial('paper')">KERTAS</button>
+    <button class="btn glass" onclick="setMaterial('glass')">KACA</button>
+    <button class="btn metal" onclick="setMaterial('metal')">LOGAM</button>
+    <button class="btn" style="background: #ff4444; color: white;" onclick="clearCanvas()">HAPUS</button>
+</div>
+
+<canvas id="polyCanvas" width="800" height="500"></canvas>
+
+<script>
+    const canvas = document.getElementById('polyCanvas');
+    const ctx = canvas.getContext('2d');
+    let currentMaterial = 'paper';
+    let shapes = [];
+
+    const materials = {
+        wood: { fill: '#d2b48c', stroke: '#8b4513', pattern: 'line' },
+        paper: { fill: '#ffffff', stroke: '#cccccc', pattern: 'none' },
+        glass: { fill: 'rgba(200, 240, 255, 0.4)', stroke: '#00aaff', pattern: 'shine' },
+        metal: { fill: '#b0b0b0', stroke: '#333333', pattern: 'gradient' }
+    };
+
+    function setMaterial(mat) {
+        currentMaterial = mat;
+        document.querySelectorAll('.btn').forEach(b => b.classList.remove('active'));
+        document.querySelector('.' + mat).classList.add('active');
+    }
+
+    // Fungsi menggambar kotak/balok (Jaring-jaring)
+    canvas.addEventListener('mousedown', function(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // Buat objek bentuk baru
+        const newShape = { x, y, size: 80, material: materials[currentMaterial] };
+        shapes.push(newShape);
+        draw();
+    });
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        shapes.forEach(s => {
+            ctx.fillStyle = s.material.fill;
+            ctx.strokeStyle = s.material.stroke;
+            ctx.lineWidth = 2;
+
+            // Gambar Kotak
+            ctx.beginPath();
+            ctx.rect(s.x - s.size/2, s.y - s.size/2, s.size, s.size);
+            ctx.fill();
+            ctx.stroke();
+
+            // Efek Tekstur Sederhana
+            if(s.material.pattern === 'line') { // Kayu
+                ctx.beginPath();
+                ctx.moveTo(s.x - 30, s.y - 20); ctx.lineTo(s.x + 30, s.y - 20);
+                ctx.stroke();
+            } else if(s.material.pattern === 'shine') { // Kaca
+                ctx.fillStyle = 'rgba(255,255,255,0.6)';
+                ctx.fillRect(s.x - 30, s.y - 30, 10, 40);
+            }
+        });
+    }
+
+    function clearCanvas() { shapes = []; draw(); }
+    setMaterial('paper'); // Default
+</script>
+
+</body>
+</html>
